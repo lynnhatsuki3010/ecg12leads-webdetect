@@ -26,8 +26,10 @@
 
   <!-- Main CSS File -->
   <link href="assets/css/main.css" rel="stylesheet">
-</head>
 
+  <!--bootstrap-->
+
+</head>
 <body class="index-page">
 
   <header id="header" class="header d-flex align-items-center fixed-top">
@@ -74,7 +76,7 @@
 
     <!-- Hero Section -->
     <section id="hero" class="hero section dark-background">
-      <img src="assets/img/23711.jpg" alt="" data-aos="fade-in">
+      <img src="assets/img/2718049.jpg" alt="" data-aos="fade-in">
   
       <div class="container d-flex flex-column align-items-center">
           <h2 data-aos="fade-up" data-aos-delay="100">ECG 12 LEADS DETECT</h2>
@@ -84,59 +86,132 @@
           </form>
   
           <div class="d-flex mt-4" data-aos="fade-up" data-aos-delay="300">
-              <button class="btn-get-started" onclick="uploadFile()">Detect Now</button>
+              <button id="detect-btn" class="btn-get-started" onclick="uploadFile()">Detect Now</button>
+          </div>
+          
+          <div id="result-section" style="display:none;">
+            <!-- Kết quả bên trái + carousel bên phải -->
+            <div class="container-fluid mt-4">
+              <div class="row justify-content-center">
+
+                <!-- KẾT QUẢ PHÂN TÍCH -->
+                <div class="col-md-8 text-center mb-3">
+                  <div id="result-div" class="text-white bg-dark p-3 rounded">
+                    <!-- Kết quả detect -->
+                  </div>
+                </div>
+
+                <!-- KHUNG ẢNH HIỂN THỊ LEAD -->
+                <div class="col-md-8 d-flex justify-content-center">
+                  <div id="main-lead" class="lead-display">
+                  </div>
+                </div>
+
+                <!-- DANH SÁCH LEAD -->
+                <div class="col-md-3">
+                  <div id="lead-list" class="lead-list scrollable-leads">
+                    <!-- Các nút Lead -->
+                  </div>
+                </div>
+
+              </div>
+
+          </div>
+
+
           </div>
   
-          <div id="result" style="margin-top: 20px;"></div>
+          
+
+
+
+
       </div>
   </section>
   
     
   <script>
-    function uploadFile() {
-      let file = document.getElementById("fileInput").files[0];
-      if (!file) {
-          alert("Please select a file!");
-          return;
-      }
-  
-      let formData = new FormData();
-      formData.append("file", file);
-  
-      fetch("http://localhost:5000/detect", {
-        method: "POST",
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
+
+  const resultSection = document.getElementById("result-section");
+  document.getElementById("detect-btn").addEventListener("click", () => {
+    resultSection.style.display = "block";
+    setTimeout(() => resultSection.classList.add("show"), 10);
+  });
+
+
+
+  function uploadFile() {
+  let file = document.getElementById("fileInput").files[0];
+  if (!file) {
+    alert("Please select a file!");
+    return;
+  }
+
+  let formData = new FormData();
+  formData.append("file", file);
+
+  fetch("http://localhost:5000/detect", {
+    method: "POST",
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
     console.log("API Response:", data);
-    let resultDiv = document.getElementById("result");
 
+    const resultDiv = document.getElementById("result-div");
+    const mainLeadDiv = document.getElementById("main-lead");
+    const leadListDiv = document.getElementById("lead-list");
+
+    // Nếu API lỗi
     if (data.error) {
-        resultDiv.innerHTML = `<p style='color: red;'>❌ Error: ${data.error}</p>`;
-        return;
+      resultDiv.innerHTML = `<p style='color:red;'>❌ ${data.error}</p>`;
+      mainLeadDiv.innerHTML = "";
+      leadListDiv.innerHTML = "";
+      return;
     }
 
-    // Nếu kết quả là object nhãn:độ tin cậy
-    let html = "<h4>🫀 ECG Detection Result</h4><table class='table'><tr><th>SNOMED Code</th><th>Probability</th></tr>";
-
-    for (const [label, prob] of Object.entries(data)) {
-        const p = (prob * 100).toFixed(2);
-        const color = prob >= 0.5 ? "red" : prob >= 0.3 ? "orange" : "green";
-        html += `<tr><td>${label}</td><td style="color:${color};font-weight:bold">${p}%</td></tr>`;
+    // ===== BẢNG KẾT QUẢ =====
+    let html = `
+      <h4>ECG Detection Result</h4>
+      <table class="table table-bordered text-start align-middle bg-white" style="border-radius:10px;">
+        <thead><tr><th>Diagnosis</th><th>Probability</th></tr></thead><tbody>
+    `;
+    for (const [label, prob] of Object.entries(data.results)) {
+      const p = (prob * 100).toFixed(2);
+      const color = prob >= 0.5 ? "red" : prob >= 0.3 ? "orange" : "green";
+      html += `<tr><td>${label}</td><td style="color:${color};font-weight:bold">${p}%</td></tr>`;
     }
-
-    html += "</table>";
+    html += "</tbody></table>";
     resultDiv.innerHTML = html;
+
+    // ===== DANH SÁCH LEAD =====
+    leadListDiv.innerHTML = "";
+    data.images.forEach((img, i) => {
+      const btn = document.createElement("button");
+      btn.textContent = `Lead ${i + 1}`;
+      btn.onclick = () => {
+        // hiển thị ảnh lead khi nhấn
+        document.querySelectorAll("#lead-list button").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        mainLeadDiv.innerHTML = `
+          <img src="data:image/png;base64,${img}" alt="Lead ${i+1}">
+          <div class="text-dark fw-bold mt-2">Lead ${i + 1}</div>
+        `;
+      };
+      leadListDiv.appendChild(btn);
+    });
+
+    // Hiển thị lead đầu tiên mặc định
+    if (data.images.length > 0) {
+      leadListDiv.querySelector("button").click();
+    }
+
   })
 
-    .catch(error => {
-        console.error("Error:", error);
-        alert("Failed to scan the file.");
-    });
-  }    
-  </script>
-    
+
+}
+</script>
+
     
     
       
@@ -349,7 +424,6 @@
   <div id="preloader"></div>
 
   <!-- Vendor JS Files -->
-  <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="assets/vendor/php-email-form/validate.js"></script>
   <script src="assets/vendor/aos/aos.js"></script>
   <script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
@@ -359,6 +433,7 @@
   <script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
 
   <!-- Main JS File -->
+   <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="assets/js/main.js"></script>
 
 </body>

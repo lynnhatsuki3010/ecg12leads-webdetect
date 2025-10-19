@@ -3,7 +3,10 @@ import scipy.io
 from scipy.signal import butter, filtfilt, iirnotch
 import torch
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
+import io, base64, json, sys
 from model import ResNet1DAttention  # phải đảm bảo file model.py có class này
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8') # in chữ tiếng việt
 
 # Load model
 def load_model(model_path="resnet_attention_resampling_posweight1.pth"):
@@ -48,6 +51,35 @@ def denoise_all_leads(signals, fs=500):
         denoised[i, :] = x
     return denoised
 
+def plot_ecg_12leads(signals, fs=500):
+    """Vẽ 12 đạo trình ECG riêng lẻ và trả về danh sách ảnh base64"""
+    leads = [
+        "I", "II", "III", "aVR", "aVL", "aVF",
+        "V1", "V2", "V3", "V4", "V5", "V6"
+    ]
+    images = []
+    t = np.arange(signals.shape[1]) / fs
+
+    for i in range(12):
+        fig, ax = plt.subplots(figsize=(6, 2))
+        ax.plot(t, signals[i, :], linewidth=0.8)
+        ax.set_title(leads[i])
+        ax.set_ylabel("mV")
+        ax.set_xlabel("Time (s)")
+        ax.grid(True, linestyle="--", linewidth=0.5)
+
+        buf = io.BytesIO()
+        plt.tight_layout()
+        plt.savefig(buf, format="png", dpi=120)
+        plt.close(fig)
+        buf.seek(0)
+        img_b64 = base64.b64encode(buf.read()).decode("utf-8")
+        images.append(img_b64)
+
+    return images
+
+
+
 
 def preprocess_ecg(mat_file, fs=500):
     """Tiền xử lý ECG đầu vào"""
@@ -63,32 +95,54 @@ def preprocess_ecg(mat_file, fs=500):
 
 # dự đoán
 def detect_ecg(mat_file):
-    """Trả về xác suất từng nhãn"""
-    x = preprocess_ecg(mat_file)  # (12, N)
-    x = np.expand_dims(x, axis=0)  # (1, 12, N)
-    x_tensor = torch.tensor(x, dtype=torch.float32)
+    """Trả về xác suất từng nhãn + hình ảnh ECG sau lọc nhiễu"""
+    x = preprocess_ecg(mat_file)
+    images_b64 = plot_ecg_12leads(x)  # vẽ và encode ảnh
+
+    x_input = np.expand_dims(x, axis=0)
+    x_tensor = torch.tensor(x_input, dtype=torch.float32)
 
     with torch.no_grad():
-        output = model(x_tensor)  # (1, num_classes)
+        output = model(x_tensor)
         probs = torch.sigmoid(output).cpu().numpy().flatten()
 
-    # Danh sách nhãn 
+    # === dùng ngưỡng tối ưu ===
+    best_thresholds = np.array([0.5, 0.75, 0.75, 0.65, 0.8, 0.6, 0.9, 0.9])
+
+    # === ÁP DỤNG NGƯỠNG CHO XÁC SUẤT ===
+    # Nếu xác suất < threshold, giảm nhẹ confidence; nếu > threshold, tăng nhẹ
+    adjusted_probs = np.clip((probs - best_thresholds + 0.5), 0, 1)
+
     labels = [
-        "426177001",
-        "426783006",
-        "164890007",
-        "427084000",
-        "427393009",
-        "164889003",
-        "429622005",
-        "39732003",
+        "426177001", "426783006", "164890007", "427084000",
+        "427393009", "164889003", "429622005", "39732003"
     ]
+    labels = labels[:len(probs)]
 
-    # Nếu num_classes < len(labels) → cắt lại
-    labels = labels[: len(probs)]
+    snomed_to_name = {
+        "426177001": "Nhịp chậm xoang",
+        "426783006": "Nhịp xoang bình thường",
+        "164890007": "Cuồng nhĩ",
+        "427084000": "Chênh lên đoạn ST",
+        "427393009": "Loạn nhịp xoang",
+        "164889003": "Rung nhĩ",
+        "429622005": "Chênh xuống đoạn ST",
+        "39732003": "Trục điện tim lệch trái"
+    }
 
-    results = {labels[i]: float(probs[i]) for i in range(len(labels))}
-    return results
+    results = {
+        snomed_to_name.get(labels[i], labels[i]): float(adjusted_probs[i])
+        for i in range(len(labels))
+    }
+
+    return {
+        "results": results,
+        "images": images_b64
+    }
+
+
+
+
 
 
 import sys, json
@@ -96,7 +150,8 @@ import sys, json
 if __name__ == "__main__":
     try:
         mat_file = sys.argv[1]
-        results = detect_ecg(mat_file)
-        print(json.dumps(results, ensure_ascii=False))  # xuất JSON hợp lệ
+        output = detect_ecg(mat_file)
+        print(json.dumps(output, ensure_ascii=False)) #TV
     except Exception as e:
-        print(json.dumps({"error": f"Lỗi phân tích model: {str(e)}"}, ensure_ascii=False))
+        print(json.dumps({"error": str(e)}, ensure_ascii=False))
+

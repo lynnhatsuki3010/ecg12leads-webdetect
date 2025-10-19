@@ -33,7 +33,7 @@ app.post("/detect", upload.single("file"), (req, res) => {
     console.log(`📂 Received file: ${req.file.originalname} (${fileExt})`);
 
     // --- Gọi Python detect ---
-    exec(`python ./detect.py "${filePath}"`, (error, stdout, stderr) => {
+    exec(`python ./detect.py "${filePath}"`,{ encoding: "utf8" }, (error, stdout, stderr) => {
         if (error) {
             console.error("❌ Error running Python script:", stderr);
             return res.status(500).json({ error: "Lỗi khi chạy model" });

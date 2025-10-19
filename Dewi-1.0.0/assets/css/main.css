@@ -1844,3 +1844,77 @@ section,
 .starter-section {
   /* Add your styles here */
 }
+
+
+/*--------------------------------------------------------------
+# RESULT
+--------------------------------------------------------------*/
+
+/* Custom scrollbar */
+/* Grid layout cho các plot ECG */
+/* Khung hiển thị ECG */
+.lead-display {
+  background-color: white;
+  border-radius: 10px;
+  padding: 10px;
+  width: 100%;
+  height: 450px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid rgba(255,255,255,0.2);
+  box-shadow: 0 0 8px rgba(255,255,255,0.15);
+  position: relative;
+  z-index: 1;
+}
+
+.lead-display img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+/* Danh sách lead bên phải */
+.scrollable-leads {
+  max-height: 450px;
+  overflow-y: auto;
+  background-color: rgba(255,255,255,0.05);
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.scrollable-leads::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollable-leads::-webkit-scrollbar-thumb {
+  background-color: #ff4500;
+  border-radius: 10px;
+}
+
+/* Nút lead */
+.scrollable-leads button {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background-color: white;
+  font-weight: bold;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.scrollable-leads button:hover {
+  background-color: #ff4500;
+  color: white;
+}
+
+#result-section {
+  opacity: 0;
+  transition: opacity 0.05s ease;
+}
+#result-section.show {
+  opacity: 1;
+}
